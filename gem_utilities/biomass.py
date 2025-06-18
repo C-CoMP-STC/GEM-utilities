@@ -412,6 +412,7 @@ def calculate_biomass_weight(
             work_table.append(
                 {
                     "metabolite": metabolite.id,
+                    "name": metabolite.name,
                     "coefficient": coeff,
                     "formula": metabolite.formula,
                     "formula_weight": metabolite.formula_weight,
