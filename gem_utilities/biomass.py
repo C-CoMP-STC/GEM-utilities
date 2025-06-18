@@ -302,7 +302,7 @@ def plot_biomass_prodcubility(model: cobra.Model, df: pd.DataFrame, sinks, out_d
 def calculate_biomass_weight(
     model: cobra.Model,
     biomass_rxn: str = "bio1_biomass",
-    biomass_met: str = None,
+    mets_to_ignore: List[str] = None,
     lumped_biomass_components: List[str] = [
         "cpd11461_c0",
         "cpd11463_c0",
@@ -320,9 +320,11 @@ def calculate_biomass_weight(
         The model to use for the biomass reaction.
     biomass_rxn : str, optional
         The ID of the biomass reaction, by default "bio1_biomass"
-    biomass_met: str, optional
-        The ID of the biomass metabolite, by default None (meaning that the
-        biomass reaction is unknown)
+    mets_to_ignore: List[str], optional
+        The ID of metabolites to remove from the biomass reaction
+        stoichiometry (i.e. if they do not have a formula weight, or form
+        cycles), most commonly the biomass metabolite, if one is defined, by
+        default None
     lumped_biomass_components : List[str], optional
         List of the biomass components which are pseudo-metabolites to break
         into their constituent parts (e.g. DNA, RNA, and protein), by default
@@ -366,16 +368,19 @@ def calculate_biomass_weight(
         unlumped_stoichiometry = biomass_rxn.metabolites
 
     # If a biomass metabolite is specified, remove it from the stoichiometry
-    if biomass_met is not None:
-        # Check that the biomass metabolite is in the model
-        if biomass_met not in [m.id for m in model.metabolites]:
-            raise ValueError(f"Biomass metabolite {biomass_met} is not in the model.")
-        # Remove the biomass metabolite from the stoichiometry
-        unlumped_stoichiometry = {
-            met: coeff
-            for met, coeff in unlumped_stoichiometry.items()
-            if met.id != biomass_met
-        }
+    if mets_to_ignore is not None:
+        for met_id in mets_to_ignore:
+            # Check that the metabolite is in the model
+            if met_id not in [m.id for m in model.metabolites]:
+                raise ValueError(
+                    f"Cannot ignore metabolite {met_id} from the biomass reaction- it is not in the model."
+                )
+            # Remove the metabolite from the stoichiometry
+            unlumped_stoichiometry = {
+                met: coeff
+                for met, coeff in unlumped_stoichiometry.items()
+                if met.id != met_id
+            }
 
     # Make sure that the stoichiometry is a dictionary
     if not isinstance(unlumped_stoichiometry, dict):
