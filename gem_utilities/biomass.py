@@ -302,6 +302,7 @@ def plot_biomass_prodcubility(model: cobra.Model, df: pd.DataFrame, sinks, out_d
 def calculate_biomass_weight(
     model: cobra.Model,
     biomass_rxn: str = "bio1_biomass",
+    biomass_met: str = None,
     lumped_biomass_components: List[str] = [
         "cpd11461_c0",
         "cpd11463_c0",
@@ -319,6 +320,9 @@ def calculate_biomass_weight(
         The model to use for the biomass reaction.
     biomass_rxn : str, optional
         The ID of the biomass reaction, by default "bio1_biomass"
+    biomass_met: str, optional
+        The ID of the biomass metabolite, by default None (meaning that the
+        biomass reaction is unknown)
     lumped_biomass_components : List[str], optional
         List of the biomass components which are pseudo-metabolites to break
         into their constituent parts (e.g. DNA, RNA, and protein), by default
@@ -360,6 +364,18 @@ def calculate_biomass_weight(
         )
     else:
         unlumped_stoichiometry = biomass_rxn.metabolites
+
+    # If a biomass metabolite is specified, remove it from the stoichiometry
+    if biomass_met is not None:
+        # Check that the biomass metabolite is in the model
+        if biomass_met not in [m.id for m in model.metabolites]:
+            raise ValueError(f"Biomass metabolite {biomass_met} is not in the model.")
+        # Remove the biomass metabolite from the stoichiometry
+        unlumped_stoichiometry = {
+            met: coeff
+            for met, coeff in unlumped_stoichiometry.items()
+            if met.id != biomass_met
+        }
 
     # Make sure that the stoichiometry is a dictionary
     if not isinstance(unlumped_stoichiometry, dict):
