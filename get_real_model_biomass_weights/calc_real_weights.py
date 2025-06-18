@@ -56,10 +56,17 @@ weight_full = calculate_biomass_weight(
 # A model from KBase
 # CACIA_model_kbase.xml uses the KBase default Gram Negative biomass
 model = cobra.io.read_sbml_model(os.path.join(FILE_DIR, "CACIA_model_kbase.xml"))
+model.id = "CACIA_model_kbase"
 weight_kbase = calculate_biomass_weight(
     model,
     "bio1_biomass",
-    biomass_met="cpd11416_c0",
+    mets_to_ignore=[
+        "cpd11416_c0",  # Biomass_c0
+        "cpd15665_c0",  # Peptidoglycan polymer (n subunits)_c0
+        "cpd15666_c0",  # Peptidoglycan polymer (n-1 subunits)_c0
+        "cpd12370_c0",  # apo-ACP_c0
+        "cpd11493_c0",  # ACP_c0
+    ],
     lumped_biomass_components=[
         "cpd17041_c0",  # Protein biosynthesis_c0
         "cpd17043_c0",  # RNA transcription_c0
