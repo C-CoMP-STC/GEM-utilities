@@ -76,42 +76,42 @@ weight_kbase = calculate_biomass_weight(
     out_dir=OUT_DIR,
 )
 
-# Human GEM
-human_gem_url = "https://raw.githubusercontent.com/SysBioChalmers/Human-GEM/main/model/Human-GEM.xml"
-print(f"Downloading Human-GEM model from {human_gem_url}...")
-try:
-    response = requests.get(human_gem_url)
-    response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
+# # Human GEM
+# human_gem_url = "https://raw.githubusercontent.com/SysBioChalmers/Human-GEM/main/model/Human-GEM.xml"
+# print(f"Downloading Human-GEM model from {human_gem_url}...")
+# try:
+#     response = requests.get(human_gem_url)
+#     response.raise_for_status()  # Raise an exception for HTTP errors (4xx or 5xx)
 
-    # Load the model directly from the string content
-    # cobra.io.read_sbml_model can take a file path or a file-like object
-    # For XML text content, use io.StringIO
-    model_content_str = response.text
-    human_gem_model = cobra.io.read_sbml_model(io.StringIO(model_content_str))
-    print("Human-GEM model loaded successfully.")
+#     # Load the model directly from the string content
+#     # cobra.io.read_sbml_model can take a file path or a file-like object
+#     # For XML text content, use io.StringIO
+#     model_content_str = response.text
+#     human_gem_model = cobra.io.read_sbml_model(io.StringIO(model_content_str))
+#     print("Human-GEM model loaded successfully.")
 
-    # Now you can use human_gem_model, for example:
-    weight_human = calculate_biomass_weight(
-        human_gem_model,
-        "MAR13082",  # "Generic human cell biomass reaction"
-        lumped_biomass_components=[
-            "MAM01721n",  # DNA
-            "MAM02847c",  # RNA
-            "MAM10012c",  # cofactor_pool_biomass
-            "MAM10013c",  # protein_pool_biomass
-            "MAM10014c",  # lipid_pool_biomass
-            "MAM10015c",  # metabolite_pool_biomass
-        ],
-        save_work_table=True,
-        out_dir=OUT_DIR,
-    )
+#     # Now you can use human_gem_model, for example:
+#     weight_human = calculate_biomass_weight(
+#         human_gem_model,
+#         "MAR13082",  # "Generic human cell biomass reaction"
+#         lumped_biomass_components=[
+#             "MAM01721n",  # DNA
+#             "MAM02847c",  # RNA
+#             "MAM10012c",  # cofactor_pool_biomass
+#             "MAM10013c",  # protein_pool_biomass
+#             "MAM10014c",  # lipid_pool_biomass
+#             "MAM10015c",  # metabolite_pool_biomass
+#         ],
+#         save_work_table=True,
+#         out_dir=OUT_DIR,
+#     )
 
-except requests.exceptions.RequestException as e:
-    print(f"Error downloading Human-GEM model: {e}")
-except Exception as e:
-    print(f"Error processing Human-GEM model: {e}")
+# except requests.exceptions.RequestException as e:
+#     print(f"Error downloading Human-GEM model: {e}")
+# except Exception as e:
+#     print(f"Error processing Human-GEM model: {e}")
 
 
-# Model with KBase default Gram Negative biomass
+# # Model with KBase default Gram Negative biomass
 
-# My current alteromonas model
+# # My current alteromonas model

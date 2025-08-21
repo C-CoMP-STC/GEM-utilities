@@ -397,6 +397,7 @@ def calculate_biomass_weight(
 
     # Calculate the weight of the biomass reaction
     weight = 0.0
+    total_carbon = 0.0
     if save_work_table:
         # Create a list to store the work table
         work_table = []
@@ -407,6 +408,16 @@ def calculate_biomass_weight(
         # should include the consumed metabolites (negative coefficient) and
         # not the produced ones (positive coefficient)
         weight += metabolite.formula_weight * (-1 * coeff)
+        # Do the same for the carbon content of the metabolite
+        # If the component does not contain carbon, skip it
+        if "C" not in metabolite.elements.keys():
+            component_flux = 0.0
+        else:
+            # Get the number of carbon atoms in the component
+            n_c_atoms = metabolite.elements["C"]
+            # Multiply the number of carbon atoms by the stoichiometric coefficient
+            component_flux = n_c_atoms * (-1 * coeff)
+        total_carbon += component_flux
         # Save the information to the work table if requested
         if save_work_table:
             work_table.append(
@@ -415,8 +426,9 @@ def calculate_biomass_weight(
                     "name": metabolite.name,
                     "coefficient": coeff,
                     "formula": metabolite.formula,
-                    "formula_weight": metabolite.formula_weight,
+                    "formula_weight (g/mol)": metabolite.formula_weight,
                     "weight_contribution": metabolite.formula_weight * (-1 * coeff),
+                    "carbon_content": component_flux,
                 }
             )
 
@@ -428,10 +440,11 @@ def calculate_biomass_weight(
         work_table_df = work_table_df.append(
             {
                 "metabolite": "Total",
-                "coefficient": "",
+                "coefficient": work_table_df["coefficient"].sum(),
                 "formula": "",
                 "formula_weight": "",
                 "weight_contribution": weight,
+                "carbon_content": total_carbon,
             },
             ignore_index=True,
         )
