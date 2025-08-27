@@ -427,7 +427,9 @@ def calculate_biomass_weight(
                     "coefficient": coeff,
                     "formula": metabolite.formula,
                     "formula_weight (g/mol)": metabolite.formula_weight,
-                    "weight_contribution": metabolite.formula_weight * (-1 * coeff),
+                    "weight_contribution": metabolite.formula_weight
+                    / 1000
+                    * (-1 * coeff),
                     "carbon_content": component_flux,
                 }
             )
