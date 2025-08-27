@@ -379,10 +379,27 @@ def _get_biomass_composition_properties(
                 "coefficient": coeff,
                 "formula": metabolite.formula,
                 "formula_weight (g/mol)": metabolite.formula_weight,
-                "weight_contribution": weight_contribution,
-                "carbon_content": carbon_flux,
+                "weight_contribution (g)": weight_contribution,
+                "carbon_content (mol C/mol biomass)": carbon_flux,
             }
         )
+
+    # Add a row for the total weight of the biomass reaction
+    total_row = pd.DataFrame(
+        [
+            {
+                "metabolite": "Total",
+                "coefficient": work_table["coefficient"].sum(),
+                "formula": "",
+                "formula_weight (g/mol)": "",
+                "weight_contribution (g)": work_table["weight_contribution (g)"].sum(),
+                "carbon_content (mol C/mol biomass)": work_table[
+                    "carbon_content (mol C/mol biomass)"
+                ].sum(),
+            }
+        ]
+    )
+    work_table = pd.concat([work_table, total_row], ignore_index=True)
 
     return {
         "weight": total_weight,
@@ -421,10 +438,6 @@ def calculate_biomass_weight(
         List of the biomass components which are pseudo-metabolites to break
         into their constituent parts (e.g. DNA, RNA, and protein), by default
         [ "cpd11461_c0", "cpd11463_c0", "cpd11462_c0"]
-    save_work_table : bool, optional
-        If True, save the work table to a CSV file, by default False
-    out_dir : str, optional
-        The directory in which to save the work table, by default None
 
     Returns
     -------
@@ -444,29 +457,6 @@ def calculate_biomass_weight(
     )
     weight = properties["weight"]
 
-    # If requested, save the work table to a CSV file
-    if save_work_table:
-        work_table_df = pd.DataFrame(properties["work_table"])
-        # Add a row for the total weight of the biomass reaction
-        total_row = pd.DataFrame(
-            [
-                {
-                    "metabolite": "Total",
-                    "coefficient": work_table_df["coefficient"].sum(),
-                    "formula": "",
-                    "formula_weight (g/mol)": "",
-                    "weight_contribution": weight,
-                    "carbon_content": properties["carbon"],
-                }
-            ]
-        )
-        work_table_df = pd.concat([work_table_df, total_row], ignore_index=True)
-        # Save the DataFrame to a CSV file
-        work_table_df.to_csv(
-            os.path.join(out_dir, model.id + "_biomass_weight_work_table.csv"),
-            index=False,
-        )
-
     # Return the weight of the biomass reaction
     if weight <= 0:
         raise ValueError(
@@ -477,9 +467,13 @@ def calculate_biomass_weight(
 
 def calculate_biomass_carbon(
     model: cobra.Model,
-    biomass_rxn: str,
+    biomass_rxn: str = "bio1_biomass",
     mets_to_ignore: List[str] = None,
-    lumped_biomass_components: List[str] = None,
+    lumped_biomass_components: List[str] = [
+        "cpd11461_c0",
+        "cpd11463_c0",
+        "cpd11462_c0",
+    ],
 ) -> float:
     """Get the total number of carbon atoms used by the biomass reaction.
 
@@ -489,7 +483,9 @@ def calculate_biomass_carbon(
         model (cobra.Model): COBRA model used.
         biomass_rxn (str): Reaction ID for the biomass reaction.
         mets_to_ignore (List[str], optional): Metabolites to ignore. Defaults to None.
-        lumped_biomass_components (List[str], optional): Lumped pseudo-metabolites to un-lump. Defaults to None.
+        lumped_biomass_components (List[str], optional): Lumped pseudo-metabolites to un-lump.         List of the biomass components which are pseudo-metabolites to break
+        into their constituent parts (e.g. DNA, RNA, and protein), by default
+        [ "cpd11461_c0", "cpd11463_c0", "cpd11462_c0"]
 
     Returns:
         float: Numeric value for the total carbon atom flux for the biomass reaction.
@@ -498,3 +494,54 @@ def calculate_biomass_carbon(
         model, biomass_rxn, mets_to_ignore, lumped_biomass_components
     )
     return properties["carbon"]
+
+
+def save_biomass_composition_work_table(
+    model: cobra.Model,
+    biomass_rxn: str = "bio1_biomass",
+    mets_to_ignore: List[str] = None,
+    lumped_biomass_components: List[str] = [
+        "cpd11461_c0",
+        "cpd11463_c0",
+        "cpd11462_c0",
+    ],
+    out_dir: str = ".",
+) -> None:
+    """
+    Save a work table showing the contribution of each metabolite in the
+    biomass reaction to the overall biomass composition.
+
+        Parameters
+    ----------
+    model : cobra.Model
+        The model to use for the biomass reaction.
+    biomass_rxn : str, optional
+        The ID of the biomass reaction, by default "bio1_biomass"
+    mets_to_ignore: List[str], optional
+        The ID of metabolites to remove from the biomass reaction
+        stoichiometry (i.e. if they do not have a formula weight, or form
+        cycles), most commonly the biomass metabolite, if one is defined, by
+        default None
+    lumped_biomass_components : List[str], optional
+        List of the biomass components which are pseudo-metabolites to break
+        into their constituent parts (e.g. DNA, RNA, and protein), by default
+        [ "cpd11461_c0", "cpd11463_c0", "cpd11462_c0"]
+    out_dir : str, optional
+        the directory in which to save the results, by default "."
+
+    Returns
+    -------
+    None, but saves a CSV file to out_dir.
+    """
+    properties = _get_biomass_composition_properties(
+        model, biomass_rxn, mets_to_ignore, lumped_biomass_components
+    )
+
+    # Extract the work table
+    work_table = properties["work_table"]
+
+    # Save the work table to a CSV file
+    work_table.to_csv(
+        os.path.join(out_dir, model.id + "_biomass_composition_work_table.csv"),
+        index=False,
+    )
