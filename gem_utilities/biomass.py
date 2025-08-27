@@ -299,6 +299,98 @@ def plot_biomass_prodcubility(model: cobra.Model, df: pd.DataFrame, sinks, out_d
     )
 
 
+def _get_biomass_composition_properties(
+    model: cobra.Model,
+    biomass_rxn_id: str,
+    mets_to_ignore: List[str] = None,
+    lumped_biomass_components: List[str] = None,
+) -> dict:
+    """
+    Private helper to calculate weight, carbon content, and a work table for a biomass reaction.
+    """
+    # Get the biomass reaction
+    biomass_rxn = model.reactions.get_by_id(biomass_rxn_id)
+
+    # "Un-lump" the biomass if lumped components are specified
+    if lumped_biomass_components:
+        # Check that the lumped biomass components are in the model
+        for lumped_met in lumped_biomass_components:
+            if lumped_met not in [m.id for m in model.metabolites]:
+                raise ValueError(
+                    f"Lumped biomass component {lumped_met} is not in the model."
+                )
+        # Unlump the biomass reaction metabolites to get the new stoichiometry
+        stoichiometry = unlump_biomass(
+            biomass_rxn.metabolites,
+            model,
+            lumped_metabolites=lumped_biomass_components,
+        )
+    else:
+        stoichiometry = biomass_rxn.metabolites
+
+    # If metabolites to ignore are specified, remove them from the stoichiometry
+    if mets_to_ignore is not None:
+        for met_id in mets_to_ignore:
+            # Check that the metabolite is in the model
+            if met_id not in [m.id for m in model.metabolites]:
+                raise ValueError(
+                    f"Cannot ignore metabolite {met_id} from the biomass reaction- it is not in the model."
+                )
+            # Remove the metabolite from the stoichiometry
+            stoichiometry = {
+                met: coeff for met, coeff in stoichiometry.items() if met.id != met_id
+            }
+
+    # Make sure that the stoichiometry is a dictionary
+    if not isinstance(stoichiometry, dict):
+        raise ValueError(
+            "The stoichiometry of the biomass reaction is not a dictionary."
+        )
+
+    # Make sure that all of the metabolites in the stoichiometry have a formula weight
+    for metabolite in stoichiometry:
+        if not hasattr(metabolite, "formula_weight") or metabolite.formula_weight == 0:
+            raise ValueError(
+                f"The metabolite {metabolite.id} does not have a formula weight."
+            )
+
+    # Calculate properties
+    total_weight = 0.0
+    total_carbon = 0.0
+    work_table = []
+
+    for metabolite, coeff in stoichiometry.items():
+        # Biomass weight should include consumed metabolites (negative coefficient)
+        weight_contribution = metabolite.formula_weight / 1000 * (-1 * coeff)
+        total_weight += weight_contribution
+
+        # Calculate carbon content
+        if "C" in metabolite.elements:
+            n_c_atoms = metabolite.elements["C"]
+            carbon_flux = n_c_atoms * (-1 * coeff)
+            total_carbon += carbon_flux
+        else:
+            carbon_flux = 0.0
+
+        work_table.append(
+            {
+                "metabolite": metabolite.id,
+                "name": metabolite.name,
+                "coefficient": coeff,
+                "formula": metabolite.formula,
+                "formula_weight (g/mol)": metabolite.formula_weight,
+                "weight_contribution": weight_contribution,
+                "carbon_content": carbon_flux,
+            }
+        )
+
+    return {
+        "weight": total_weight,
+        "carbon": total_carbon,
+        "work_table": work_table,
+    }
+
+
 def calculate_biomass_weight(
     model: cobra.Model,
     biomass_rxn: str = "bio1_biomass",
@@ -346,148 +438,63 @@ def calculate_biomass_weight(
             "If save_work_table is True, out_dir must be set to a valid directory."
         )
 
-    # Get the biomass reaction
-    biomass_rxn = model.reactions.get_by_id(biomass_rxn)
-
-    # "Un-lump" the biomass so that any lumped biomass component (e.g. DNA) is
-    # separated into its constituent metabolites (e.g. dAMP, dCMP, dGMP, dTMP)
-    if lumped_biomass_components:
-        # Check that the lumped biomass components are in the model
-        for lumped_met in lumped_biomass_components:
-            if lumped_met not in [m.id for m in model.metabolites]:
-                raise ValueError(
-                    f"Lumped biomass component {lumped_met} is not in the model."
-                )
-        # Unlump the biomass reaction metabolites to get the new stoichiometry
-        unlumped_stoichiometry = unlump_biomass(
-            biomass_rxn.metabolites,
-            model,
-            lumped_metabolites=lumped_biomass_components,
-        )
-    else:
-        unlumped_stoichiometry = biomass_rxn.metabolites
-
-    # If a biomass metabolite is specified, remove it from the stoichiometry
-    if mets_to_ignore is not None:
-        for met_id in mets_to_ignore:
-            # Check that the metabolite is in the model
-            if met_id not in [m.id for m in model.metabolites]:
-                raise ValueError(
-                    f"Cannot ignore metabolite {met_id} from the biomass reaction- it is not in the model."
-                )
-            # Remove the metabolite from the stoichiometry
-            unlumped_stoichiometry = {
-                met: coeff
-                for met, coeff in unlumped_stoichiometry.items()
-                if met.id != met_id
-            }
-
-    # Make sure that the stoichiometry is a dictionary
-    if not isinstance(unlumped_stoichiometry, dict):
-        raise ValueError(
-            "The stoichiometry of the biomass reaction is not a dictionary."
-        )
-
-    # Make sure that all of the metabolites in the stoichiometry have a formula weight that is not 0
-    for metabolite in unlumped_stoichiometry:
-        if not hasattr(metabolite, "formula_weight") or metabolite.formula_weight == 0:
-            raise ValueError(
-                f"The metabolite {metabolite.id} does not have a formula weight."
-            )
-
-    # Calculate the weight of the biomass reaction
-    weight = 0.0
-    total_carbon = 0.0
-    if save_work_table:
-        # Create a list to store the work table
-        work_table = []
-    # Loop through the metabolites in the biomass reaction
-    for metabolite, coeff in unlumped_stoichiometry.items():
-        # Multiply the formula weight of the metabolite by its coefficient
-        # Use the opposite sign of the coefficient because the biomass weight
-        # should include the consumed metabolites (negative coefficient) and
-        # not the produced ones (positive coefficient)
-        weight += metabolite.formula_weight / 1000 * (-1 * coeff)
-        # Do the same for the carbon content of the metabolite
-        # If the component does not contain carbon, skip it
-        if "C" not in metabolite.elements.keys():
-            component_flux = 0.0
-        else:
-            # Get the number of carbon atoms in the component
-            n_c_atoms = metabolite.elements["C"]
-            # Multiply the number of carbon atoms by the stoichiometric coefficient
-            component_flux = n_c_atoms * (-1 * coeff)
-        total_carbon += component_flux
-        # Save the information to the work table if requested
-        if save_work_table:
-            work_table.append(
-                {
-                    "metabolite": metabolite.id,
-                    "name": metabolite.name,
-                    "coefficient": coeff,
-                    "formula": metabolite.formula,
-                    "formula_weight (g/mol)": metabolite.formula_weight,
-                    "weight_contribution": metabolite.formula_weight
-                    / 1000
-                    * (-1 * coeff),
-                    "carbon_content": component_flux,
-                }
-            )
+    # Calculate biomass properties
+    properties = _get_biomass_composition_properties(
+        model, biomass_rxn, mets_to_ignore, lumped_biomass_components
+    )
+    weight = properties["weight"]
 
     # If requested, save the work table to a CSV file
     if save_work_table:
-        # Convert the work table to a DataFrame
-        work_table_df = pd.DataFrame(work_table)
+        work_table_df = pd.DataFrame(properties["work_table"])
         # Add a row for the total weight of the biomass reaction
-        work_table_df = work_table_df.append(
-            {
-                "metabolite": "Total",
-                "coefficient": work_table_df["coefficient"].sum(),
-                "formula": "",
-                "formula_weight (g/mol)": "",
-                "weight_contribution": weight,
-                "carbon_content": total_carbon,
-            },
-            ignore_index=True,
+        total_row = pd.DataFrame(
+            [
+                {
+                    "metabolite": "Total",
+                    "coefficient": work_table_df["coefficient"].sum(),
+                    "formula": "",
+                    "formula_weight (g/mol)": "",
+                    "weight_contribution": weight,
+                    "carbon_content": properties["carbon"],
+                }
+            ]
         )
+        work_table_df = pd.concat([work_table_df, total_row], ignore_index=True)
         # Save the DataFrame to a CSV file
         work_table_df.to_csv(
             os.path.join(out_dir, model.id + "_biomass_weight_work_table.csv"),
             index=False,
         )
+
     # Return the weight of the biomass reaction
-    if weight < 0:
-        raise ValueError("The biomass weight cannot be negative. Check the model.")
-    if weight == 0:
-        raise ValueError("The biomass weight cannot be zero. Check the model.")
+    if weight <= 0:
+        raise ValueError(
+            "The biomass weight must be positive. Check the model and reaction direction."
+        )
     return weight
 
 
-def calculate_biomass_carbon(model, biomass_rxn):
-    """Get the total number of carbon atoms used by the biomass reaction
+def calculate_biomass_carbon(
+    model: cobra.Model,
+    biomass_rxn: str,
+    mets_to_ignore: List[str] = None,
+    lumped_biomass_components: List[str] = None,
+) -> float:
+    """Get the total number of carbon atoms used by the biomass reaction.
+
+    This function can handle "lumped" biomass components if specified.
 
     Args:
-    model (cobra.Model): COBRA model used
-    biomass_rxn (str): Reaction ID for the biomass reaction
+        model (cobra.Model): COBRA model used.
+        biomass_rxn (str): Reaction ID for the biomass reaction.
+        mets_to_ignore (List[str], optional): Metabolites to ignore. Defaults to None.
+        lumped_biomass_components (List[str], optional): Lumped pseudo-metabolites to un-lump. Defaults to None.
 
     Returns:
-    (float): Numeric value for the total carbon atom flux
-        for the biomass reaction
+        float: Numeric value for the total carbon atom flux for the biomass reaction.
     """
-    # Get the actual reaction object for the biomass reaction
-    rxn_obj = model.reactions.get_by_id(biomass_rxn)
-
-    c_atom_flux = 0
-    # Loop through all of the biomass components
-    for component, s_coeff in rxn_obj.metabolites.items():
-        # If the component does not contain carbon, skip it
-        if "C" not in component.elements.keys():
-            continue
-        # Get the number of carbon atoms in the component
-        n_c_atoms = component.elements["C"]
-        # Multiply the number of carbon atoms by the stoichiometric coefficient
-        component_flux = n_c_atoms * s_coeff
-        # Add the flux to the total c_atom_flux
-        c_atom_flux += component_flux
-
-    return abs(c_atom_flux)
+    properties = _get_biomass_composition_properties(
+        model, biomass_rxn, mets_to_ignore, lumped_biomass_components
+    )
+    return properties["carbon"]
