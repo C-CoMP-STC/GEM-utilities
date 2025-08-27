@@ -1,4 +1,4 @@
-metabolite,name,coefficient,formula,formula_weight (g/mol),weight_contribution,carbon_content
+metabolite,name,coefficient,formula,formula_weight (g/mol),weight_contribution (g),carbon_content (mol C/mol biomass)
 3pg_c,3-Phospho-D-glycerate,-1.496,C3H4O7P,183.033421,0.273817997816,4.4879999999999995
 accoa_c,Acetyl-CoA,-3.7478,C23H34N7O17P3S,805.539043,3.0189992253553997,86.1994
 atp_c,ATP,-59.81,C10H12N5O13P3,503.149263,30.093357420030006,598.1
@@ -22,4 +22,4 @@ h_c,H+,59.81,H,1.00794,-0.06028489140000001,0.0
 nadh_c,Nicotinamide adenine dinucleotide - reduced,3.547,C21H27N7O14P2,663.425102,-2.3531688367940005,-74.48700000000001
 nadp_c,Nicotinamide adenine dinucleotide phosphate,13.0279,C21H25N7O17P3,740.3811830000001,-9.645612014005701,-273.58590000000004
 pi_c,Phosphate,59.81,HO4P,95.97930099999999,-5.74052199281,0.0
-Total,,50.43289999999999,,,1.5407661664547208,42.55549999999954
+Total,,50.43289999999999,,,1.5407661664547065,42.55549999999977

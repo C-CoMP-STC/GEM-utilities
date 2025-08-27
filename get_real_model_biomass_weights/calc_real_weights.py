@@ -12,7 +12,7 @@ if PROJECT_ROOT not in sys.path:
 
 import cobra
 
-from gem_utilities.biomass import calculate_biomass_weight
+from gem_utilities.biomass import save_biomass_composition_work_table
 
 FILE_DIR = os.path.dirname(os.path.realpath(__file__))
 OUT_DIR = os.path.join(FILE_DIR, "results")
@@ -23,21 +23,19 @@ if not os.path.exists(OUT_DIR):
 
 # E coli core model
 ecoli_core = cobra.io.load_model("textbook")
-weight = calculate_biomass_weight(
+save_biomass_composition_work_table(
     ecoli_core,
     "Biomass_Ecoli_core",
     lumped_biomass_components=None,
-    save_work_table=True,
     out_dir=OUT_DIR,
 )
 
 # E. coli full model
 ecoli_full = cobra.io.load_model("iML1515")
-weight_full = calculate_biomass_weight(
+save_biomass_composition_work_table(
     ecoli_full,
     "BIOMASS_Ec_iML1515_WT_75p37M",
     lumped_biomass_components=None,
-    save_work_table=True,
     out_dir=OUT_DIR,
 )
 
@@ -45,11 +43,10 @@ weight_full = calculate_biomass_weight(
 ecoli_full_v2 = cobra.io.load_json_model(
     "/Users/helenscott/Library/CloudStorage/OneDrive-SharedLibraries-BostonUniversity/Segre Lab - Documents/2-INDIVIDUAL_FOLDERS/Scott_Helen/Projects/C-CoMP/Education/FBA-case-studies/jet-fuel-bugs-on-mars/iJO1366.json"
 )
-weight_full = calculate_biomass_weight(
+save_biomass_composition_work_table(
     ecoli_full_v2,
     "BIOMASS_Ec_iJO1366_WT_53p95M",
     lumped_biomass_components=None,
-    save_work_table=True,
     out_dir=OUT_DIR,
 )
 
@@ -57,7 +54,7 @@ weight_full = calculate_biomass_weight(
 # CACIA_model_kbase.xml uses the KBase default Gram Negative biomass
 model = cobra.io.read_sbml_model(os.path.join(FILE_DIR, "CACIA_model_kbase.xml"))
 model.id = "CACIA_model_kbase"
-weight_kbase = calculate_biomass_weight(
+save_biomass_composition_work_table(
     model,
     "bio1_biomass",
     mets_to_ignore=[
@@ -72,7 +69,6 @@ weight_kbase = calculate_biomass_weight(
         "cpd17043_c0",  # RNA transcription_c0
         "cpd17042_c0",  # DNA replication_c0
     ],
-    save_work_table=True,
     out_dir=OUT_DIR,
 )
 

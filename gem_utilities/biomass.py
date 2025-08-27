@@ -383,7 +383,8 @@ def _get_biomass_composition_properties(
                 "carbon_content (mol C/mol biomass)": carbon_flux,
             }
         )
-
+    # Convert the work table to a dataframe
+    work_table = pd.DataFrame(work_table)
     # Add a row for the total weight of the biomass reaction
     total_row = pd.DataFrame(
         [
@@ -417,8 +418,6 @@ def calculate_biomass_weight(
         "cpd11463_c0",
         "cpd11462_c0",
     ],
-    save_work_table: bool = False,
-    out_dir: str = None,
 ) -> float:
     """
     Calculate the weight of the biomass reaction in the model.
@@ -445,12 +444,6 @@ def calculate_biomass_weight(
         Weight of the biomass reaction in grams per mole (which is the unit of
         molecular mass).
     """
-    # If save_work_table is True, make sure that out_dir is set
-    if save_work_table and out_dir is None:
-        raise ValueError(
-            "If save_work_table is True, out_dir must be set to a valid directory."
-        )
-
     # Calculate biomass properties
     properties = _get_biomass_composition_properties(
         model, biomass_rxn, mets_to_ignore, lumped_biomass_components
