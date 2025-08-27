@@ -461,3 +461,71 @@ def calculate_biomass_weight(
     if weight == 0:
         raise ValueError("The biomass weight cannot be zero. Check the model.")
     return weight
+
+
+def get_biomass_carbon(solution, biomass_rxn, model, tool_used="COMETS"):
+    """Get the total number of carbon atoms used by the biomass reaction
+
+    Args:
+    solution (pd.Series OR cobra.Solution): Results from FBA
+    biomass_rxn (str): Reaction ID for the biomass reaction
+    model (cobra.Model): COBRA model used
+    tool_used (str): Which tool was used to run FBA. Options are
+        "COMETS" or "COBRApy" (Capitalization does not matter).
+
+    Returns:
+    (float): Numeric value for the total carbon atom flux
+        for the biomass reaction
+    """
+    # Check that the tool used matches with the expected type of the
+    # solution object
+    if tool_used.lower() != "comets" and tool_used.lower() != "cobrapy":
+        raise ValueError(
+            "Function does not recognize the value supplied "
+            + "for `tool_used`. Select from `COMETS` or `COBRApy`"
+            + " (capitalization does not matter). You supplied "
+            + tool_used
+            + "."
+        )
+    if tool_used.lower() == "comets" and not isinstance(solution, pd.Series):
+        raise ValueError(
+            "Function was expecting results from a COMETS"
+            + "simulation as a pandas.Series object, but was "
+            + "given the solution as a "
+            + type(solution)
+            + "object."
+        )
+    if tool_used.lower() == "cobrapy" and not isinstance(solution, cobra.Solution):
+        raise ValueError(
+            "Function was expecting results from a COBRApy"
+            + "simulation as a cobra.Solution object, but was "
+            + "given the solution as a "
+            + type(solution)
+            + "object."
+        )
+
+    # Get the flux through the biomass reaction
+    if tool_used.lower() == "comets":
+        rxn_flux = solution[biomass_rxn]
+    if tool_used.lower() == "cobrapy":
+        rxn_flux = solution.fluxes[biomass_rxn]
+
+    # Get the actual reaction object for the biomass reaction
+    rxn_obj = model.reactions.get_by_id(biomass_rxn)
+
+    c_atom_flux = 0
+    # Loop through all of the biomass components
+    for component, s_coeff in rxn_obj.metabolites.items():
+        # If the component does not contain carbon, skip it
+        if "C" not in component.elements.keys():
+            continue
+        # Get the number of carbon atoms in the component
+        n_c_atoms = component.elements["C"]
+        # Multiply the number of carbon atoms by the stoichiometric coefficient
+        component_flux = n_c_atoms * s_coeff
+        # Add the flux to the total c_atom_flux
+        c_atom_flux += component_flux
+
+    # The final c atom flux is the product of the reaction flux and the
+    # total number of carbon atoms in 1 mmol (1 g) of biomass
+    return abs(c_atom_flux * rxn_flux)
