@@ -407,7 +407,7 @@ def calculate_biomass_weight(
         # Use the opposite sign of the coefficient because the biomass weight
         # should include the consumed metabolites (negative coefficient) and
         # not the produced ones (positive coefficient)
-        weight += metabolite.formula_weight * (-1 * coeff)
+        weight += metabolite.formula_weight / 1000 * (-1 * coeff)
         # Do the same for the carbon content of the metabolite
         # If the component does not contain carbon, skip it
         if "C" not in metabolite.elements.keys():
@@ -444,7 +444,7 @@ def calculate_biomass_weight(
                 "metabolite": "Total",
                 "coefficient": work_table_df["coefficient"].sum(),
                 "formula": "",
-                "formula_weight": "",
+                "formula_weight (g/mol)": "",
                 "weight_contribution": weight,
                 "carbon_content": total_carbon,
             },
