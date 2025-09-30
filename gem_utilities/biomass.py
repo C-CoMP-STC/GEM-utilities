@@ -10,8 +10,8 @@ from gem_utilities.media import clean_media
 
 
 def unlump_biomass(
+    biomass_metabolites: dict,
     model: cobra.Model,
-    biomass_compounds: List[str],
     lumped_metabolites=["cpd11461_c0", "cpd11463_c0", "cpd11462_c0"],
 ) -> List[str]:
     """
@@ -19,8 +19,10 @@ def unlump_biomass(
     separated into its constituent metabolites (e.g. dAMP, dCMP, dGMP, dTMP)
 
     Args:
-    model (cobra.Model): The model to test
-    biomass_compounds (list): List of biomass compounds to test
+    biomass_metabolites (dict): Metabolites attribute of the model's biomass
+        reaction, where the keys are metabolite IDs and the values are their
+        stoichiometric coefficients
+    model (cobra.Model): The model to use for the biomass reaction
     lumped_metabolites (list): List of metabolites that are lumped in the
         biomass reaction (defaults to
         ['cpd11461_c0', 'cpd11463_c0', 'cpd11462_c0'] which is DNA, protein,
@@ -29,33 +31,47 @@ def unlump_biomass(
     Returns:
     list: List of individual metabolites that make up the biomass
     """
-    # Make a copy of the biomass compounds
-    unlumped_compounds = biomass_compounds.copy()
+    # Make a new metabolite/coefficient dictionary for the biomass reaction
+    # with "unlumped" components
+    unlumped_metabolites = {}
 
-    # Loop through the lumped metabolites
-    for lumped_metabolite in lumped_metabolites:
-        # Remove the metabolite from the list of biomass compounds
-        unlumped_compounds.remove(lumped_metabolite)
-        # Find the reaction in the model that makes the lumped metabolite
-        synth_rxn = [
-            r
-            for r in model.reactions
-            if model.metabolites.get_by_id(lumped_metabolite) in r.products
-        ]
-        # Throw an error if there is not exactly one reaction that makes the lumped metabolite
-        if len(synth_rxn) != 1:
-            raise ValueError(
-                "There should be exactly one reaction that makes the lumped metabolite"
-            )
-        # Get the reaction
-        synth_rxn = synth_rxn[0]
-        # Get the metabolites that are consumed in the reaction
-        substrates = [m.id for m in synth_rxn.reactants]
-        # Add the metabolites to the list of biomass compounds
-        unlumped_compounds += substrates
+    for metabolite, coeff in biomass_metabolites.items():
+        # If the metabolite is a lumped component, skip it
+        if metabolite.id in lumped_metabolites:
+            # Find the reactions that produces the lumped metabolite
+            # Find the reaction in the model that makes the lumped metabolite
+            synth_rxn = [r for r in model.reactions if metabolite in r.products]
+            # Throw an error if there is not exactly one reaction that makes the lumped metabolite
+            if len(synth_rxn) != 1:
+                raise ValueError(
+                    "There should be exactly one reaction that makes the lumped metabolite"
+                )
+            # Get the reaction
+            synth_rxn = synth_rxn[0]
+            # Loop trhough all of the metabolites in the reaction
+            for subcomponent, sub_coeff in synth_rxn.metabolites.items():
+                # If the metabolite is not a lumped component, add it to the list of biomass compounds
+                if subcomponent.id not in lumped_metabolites:
+                    # Add the metabolite and coefficient to the dictionary
+                    update_dict(
+                        unlumped_metabolites,
+                        {subcomponent: sub_coeff * abs(coeff)},
+                    )
+        # Otherwise, add the metabolite and coefficient to the dictionary
+        else:
+            update_dict(unlumped_metabolites, {metabolite: coeff})
 
-    # Return the list of individual metabolites that make up the biomass
-    return unlumped_compounds
+    # Return the new dictionary of unlumped metabolites
+    return unlumped_metabolites
+
+
+def update_dict(d, new_items):
+    """Update a dictionary with new items."""
+    for key, value in new_items.items():
+        if key in d:
+            d[key] += value
+        else:
+            d[key] = value
 
 
 def check_biomass_producibility(
@@ -100,7 +116,7 @@ def check_biomass_producibility(
     lumped_biomass_components : List[str], optional
         List of the biomass components which are pseudo-metabolites to break
         into their constituent parts (e.g. DNA, RNA, and protein), by default
-        [ "cpd11461_c0", "cpd11463_c0", "cpd11462_c0", ]
+        [ "cpd11461_c0", "cpd11463_c0", "cpd11462_c0"]
     out_dir : str, optional
         the directory in which to save the results, by default "."
 
@@ -120,16 +136,22 @@ def check_biomass_producibility(
 
     # Get the biomass composition from the model
     biomass_rxn = model.reactions.get_by_id(biomass_rxn)
-    biomass_compounds = [
-        met.id for met in biomass_rxn.metabolites if biomass_rxn.metabolites[met] < 0
-    ]
 
     # "Un-lump" the biomass so that any lumped biomass component (e.g. DNA) is
     # separated into its constituent metabolites (e.g. dAMP, dCMP, dGMP, dTMP)
     if lumped_biomass_components:
-        unlumped_compounds = unlump_biomass(model, biomass_compounds)
+        unlumped_rxn_metabolites = unlump_biomass(biomass_rxn.metabolites, model)
+        unlumped_compounds = [
+            met.id
+            for met in unlumped_rxn_metabolites
+            if unlumped_rxn_metabolites[met] < 0
+        ]
     else:
-        unlumped_compounds = biomass_compounds
+        unlumped_compounds = [
+            met.id
+            for met in biomass_rxn.metabolites
+            if biomass_rxn.metabolites[met] < 0
+        ]
 
     # Add sinks, either for all metabolites, or juts for the biomass components
     if sinks_for_all:
@@ -188,7 +210,9 @@ def check_biomass_producibility(
     # Make a dataframe of the producibility results and save it to a CSV file
     df = pd.DataFrame.from_dict(biomass_producibility)
     # Save the dataframe to a CSV file and make the file name specific the the model.id
-    df.to_csv(os.path.join(out_dir, model.id + "_biomass_producibility_" + sinks + ".csv"))
+    df.to_csv(
+        os.path.join(out_dir, model.id + "_biomass_producibility_" + sinks + ".csv")
+    )
 
     # Plot the producibility results
     plot_biomass_prodcubility(model, df, sinks, out_dir=out_dir)
@@ -269,4 +293,249 @@ def plot_biomass_prodcubility(model: cobra.Model, df: pd.DataFrame, sinks, out_d
     plt.tight_layout()
 
     # Save the plot
-    plt.savefig(os.path.join(out_dir, model.id + "_biomass_producibility_heatmap_" + sinks + ".png"))
+    plt.savefig(
+        os.path.join(
+            out_dir, model.id + "_biomass_producibility_heatmap_" + sinks + ".png"
+        )
+    )
+
+
+def _get_biomass_composition_properties(
+    model: cobra.Model,
+    biomass_rxn_id: str,
+    mets_to_ignore: List[str] = None,
+    lumped_biomass_components: List[str] = None,
+) -> dict:
+    """
+    Private helper to calculate weight, carbon content, and a work table for a biomass reaction.
+    """
+    # Get the biomass reaction
+    biomass_rxn = model.reactions.get_by_id(biomass_rxn_id)
+
+    # "Un-lump" the biomass if lumped components are specified
+    if lumped_biomass_components:
+        # Check that the lumped biomass components are in the model
+        for lumped_met in lumped_biomass_components:
+            if lumped_met not in [m.id for m in model.metabolites]:
+                raise ValueError(
+                    f"Lumped biomass component {lumped_met} is not in the model."
+                )
+        # Unlump the biomass reaction metabolites to get the new stoichiometry
+        stoichiometry = unlump_biomass(
+            biomass_rxn.metabolites,
+            model,
+            lumped_metabolites=lumped_biomass_components,
+        )
+    else:
+        stoichiometry = biomass_rxn.metabolites
+
+    # If metabolites to ignore are specified, remove them from the stoichiometry
+    if mets_to_ignore is not None:
+        for met_id in mets_to_ignore:
+            # Check that the metabolite is in the model
+            if met_id not in [m.id for m in model.metabolites]:
+                raise ValueError(
+                    f"Cannot ignore metabolite {met_id} from the biomass reaction- it is not in the model."
+                )
+            # Remove the metabolite from the stoichiometry
+            stoichiometry = {
+                met: coeff for met, coeff in stoichiometry.items() if met.id != met_id
+            }
+
+    # Make sure that the stoichiometry is a dictionary
+    if not isinstance(stoichiometry, dict):
+        raise ValueError(
+            "The stoichiometry of the biomass reaction is not a dictionary."
+        )
+
+    # Make sure that all of the metabolites in the stoichiometry have a formula weight
+    for metabolite in stoichiometry:
+        if not hasattr(metabolite, "formula_weight") or metabolite.formula_weight == 0:
+            raise ValueError(
+                f"The metabolite {metabolite.id} does not have a formula weight."
+            )
+
+    # Calculate properties
+    total_weight = 0.0
+    total_carbon = 0.0
+    work_table = []
+
+    for metabolite, coeff in stoichiometry.items():
+        # Biomass weight should include consumed metabolites (negative coefficient)
+        weight_contribution = metabolite.formula_weight / 1000 * (-1 * coeff)
+        total_weight += weight_contribution
+
+        # Calculate carbon content
+        if "C" in metabolite.elements:
+            n_c_atoms = metabolite.elements["C"]
+            carbon_flux = n_c_atoms * (-1 * coeff)
+            total_carbon += carbon_flux
+        else:
+            carbon_flux = 0.0
+
+        work_table.append(
+            {
+                "metabolite": metabolite.id,
+                "name": metabolite.name,
+                "coefficient": coeff,
+                "formula": metabolite.formula,
+                "formula_weight (g/mol)": metabolite.formula_weight,
+                "weight_contribution (g)": weight_contribution,
+                "carbon_content (mol C/mol biomass)": carbon_flux,
+            }
+        )
+    # Convert the work table to a dataframe
+    work_table = pd.DataFrame(work_table)
+    # Add a row for the total weight of the biomass reaction
+    total_row = pd.DataFrame(
+        [
+            {
+                "metabolite": "Total",
+                "coefficient": work_table["coefficient"].sum(),
+                "formula": "",
+                "formula_weight (g/mol)": "",
+                "weight_contribution (g)": work_table["weight_contribution (g)"].sum(),
+                "carbon_content (mol C/mol biomass)": work_table[
+                    "carbon_content (mol C/mol biomass)"
+                ].sum(),
+            }
+        ]
+    )
+    work_table = pd.concat([work_table, total_row], ignore_index=True)
+
+    return {
+        "weight": total_weight,
+        "carbon": total_carbon,
+        "work_table": work_table,
+    }
+
+
+def calculate_biomass_weight(
+    model: cobra.Model,
+    biomass_rxn: str = "bio1_biomass",
+    mets_to_ignore: List[str] = None,
+    lumped_biomass_components: List[str] = [
+        "cpd11461_c0",
+        "cpd11463_c0",
+        "cpd11462_c0",
+    ],
+) -> float:
+    """
+    Calculate the weight of the biomass reaction in the model.
+
+    Parameters
+    ----------
+    model : cobra.Model
+        The model to use for the biomass reaction.
+    biomass_rxn : str, optional
+        The ID of the biomass reaction, by default "bio1_biomass"
+    mets_to_ignore: List[str], optional
+        The ID of metabolites to remove from the biomass reaction
+        stoichiometry (i.e. if they do not have a formula weight, or form
+        cycles), most commonly the biomass metabolite, if one is defined, by
+        default None
+    lumped_biomass_components : List[str], optional
+        List of the biomass components which are pseudo-metabolites to break
+        into their constituent parts (e.g. DNA, RNA, and protein), by default
+        [ "cpd11461_c0", "cpd11463_c0", "cpd11462_c0"]
+
+    Returns
+    -------
+    float
+        Weight of the biomass reaction in grams per mole (which is the unit of
+        molecular mass).
+    """
+    # Calculate biomass properties
+    properties = _get_biomass_composition_properties(
+        model, biomass_rxn, mets_to_ignore, lumped_biomass_components
+    )
+    weight = properties["weight"]
+
+    # Return the weight of the biomass reaction
+    if weight <= 0:
+        raise ValueError(
+            "The biomass weight must be positive. Check the model and reaction direction."
+        )
+    return weight
+
+
+def calculate_biomass_carbon(
+    model: cobra.Model,
+    biomass_rxn: str = "bio1_biomass",
+    mets_to_ignore: List[str] = None,
+    lumped_biomass_components: List[str] = [
+        "cpd11461_c0",
+        "cpd11463_c0",
+        "cpd11462_c0",
+    ],
+) -> float:
+    """Get the total number of carbon atoms used by the biomass reaction.
+
+    This function can handle "lumped" biomass components if specified.
+
+    Args:
+        model (cobra.Model): COBRA model used.
+        biomass_rxn (str): Reaction ID for the biomass reaction.
+        mets_to_ignore (List[str], optional): Metabolites to ignore. Defaults to None.
+        lumped_biomass_components (List[str], optional): Lumped pseudo-metabolites to un-lump.         List of the biomass components which are pseudo-metabolites to break
+        into their constituent parts (e.g. DNA, RNA, and protein), by default
+        [ "cpd11461_c0", "cpd11463_c0", "cpd11462_c0"]
+
+    Returns:
+        float: Numeric value for the total carbon atom flux for the biomass reaction.
+    """
+    properties = _get_biomass_composition_properties(
+        model, biomass_rxn, mets_to_ignore, lumped_biomass_components
+    )
+    return properties["carbon"]
+
+
+def save_biomass_composition_work_table(
+    model: cobra.Model,
+    biomass_rxn: str = "bio1_biomass",
+    mets_to_ignore: List[str] = None,
+    lumped_biomass_components: List[str] = [
+        "cpd11461_c0",
+        "cpd11463_c0",
+        "cpd11462_c0",
+    ],
+    out_dir: str = ".",
+) -> None:
+    """
+    Save a work table showing the contribution of each metabolite in the
+    biomass reaction to the overall biomass composition.
+
+        Parameters
+    ----------
+    model : cobra.Model
+        The model to use for the biomass reaction.
+    biomass_rxn : str, optional
+        The ID of the biomass reaction, by default "bio1_biomass"
+    mets_to_ignore: List[str], optional
+        The ID of metabolites to remove from the biomass reaction
+        stoichiometry (i.e. if they do not have a formula weight, or form
+        cycles), most commonly the biomass metabolite, if one is defined, by
+        default None
+    lumped_biomass_components : List[str], optional
+        List of the biomass components which are pseudo-metabolites to break
+        into their constituent parts (e.g. DNA, RNA, and protein), by default
+        [ "cpd11461_c0", "cpd11463_c0", "cpd11462_c0"]
+    out_dir : str, optional
+        the directory in which to save the results, by default "."
+
+    Returns
+    -------
+    None, but saves a CSV file to out_dir.
+    """
+    properties = _get_biomass_composition_properties(
+        model, biomass_rxn, mets_to_ignore, lumped_biomass_components
+    )
+
+    # Extract the work table
+    work_table = properties["work_table"]
+
+    # Save the work table to a CSV file
+    work_table.to_csv(
+        os.path.join(out_dir, model.id + "_biomass_composition_work_table.csv"),
+        index=False,
+    )
