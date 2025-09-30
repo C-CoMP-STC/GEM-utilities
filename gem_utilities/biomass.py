@@ -140,10 +140,11 @@ def check_biomass_producibility(
     # "Un-lump" the biomass so that any lumped biomass component (e.g. DNA) is
     # separated into its constituent metabolites (e.g. dAMP, dCMP, dGMP, dTMP)
     if lumped_biomass_components:
+        unlumped_rxn_metabolites = unlump_biomass(biomass_rxn.metabolites, model)
         unlumped_compounds = [
             met.id
-            for met in unlump_biomass(model, biomass_rxn.metabolites)
-            if biomass_rxn.metabolites[met] < 0
+            for met in unlumped_rxn_metabolites
+            if unlumped_rxn_metabolites[met] < 0
         ]
     else:
         unlumped_compounds = [
