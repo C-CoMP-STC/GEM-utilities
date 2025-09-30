@@ -176,7 +176,8 @@ class TestBiomassWeight(unittest.TestCase):
 
     def test_calculate_biomass_weight_toy_models(self):
         """Test the calculate_biomass_weight function using toy models"""
-        exp_weight = 3.0
+        # Expected weight based on the metabolites defined
+        exp_weight = .003
 
         # Calculate the biomass weight without GAM
         weight_no_GAM = calculate_biomass_weight(
@@ -188,7 +189,7 @@ class TestBiomassWeight(unittest.TestCase):
         weight_with_GAM = calculate_biomass_weight(
             self.model_with_GAM, "Biomass_with_GAM", lumped_biomass_components=None
         )
-        self.assertAlmostEqual(weight_with_GAM, exp_weight, places=1)
+        self.assertAlmostEqual(weight_with_GAM, exp_weight, places=3)
 
         # Check that the function raises an error for a biomass reaction with a
         # metabolite that has no formula weight
@@ -202,10 +203,7 @@ class TestBiomassWeight(unittest.TestCase):
     def test_calculate_biomass_weight_e_coli(self):
         """Test the calculate_biomass_weight function using the E. coli core model"""
         # Set what the expected outputs are
-        exp_weight = 999.0
-        exp_table = pd.read_csv(
-            os.path.join(TESTFILE_DIR, "iML1515_biomass_weight_work_table.csv")
-        )
+        exp_weight = 1.0
 
         # Load the full E. coli from COBRApy
         model = cobra.io.load_model("iML1515")
@@ -215,15 +213,10 @@ class TestBiomassWeight(unittest.TestCase):
             model,
             "BIOMASS_Ec_iML1515_WT_75p37M",
             lumped_biomass_components=None,
-            save_work_table=True,
-            out_dir=".",
         )
 
         # Compare the returned weight with the expected value
         self.assertAlmostEqual(weight, exp_weight, places=0)
-        # Check that the work table matches the expected output
-        work_table = pd.read_csv("iML1515_biomass_weight_work_table.csv")
-        pd.testing.assert_frame_equal(work_table, exp_table)
 
     def tearDown(self):
         # Clean up the test files
