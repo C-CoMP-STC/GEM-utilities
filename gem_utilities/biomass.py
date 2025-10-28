@@ -198,10 +198,11 @@ def check_biomass_producibility(
         biomass_producibility[c_source] = {}
         # Set the model media to match the experimental media
         medium = media_definitions[row["minimal_media"]].copy()
-        if not pd.isna(row["met_id"]):
-            medium["EX_" + row["met_id"] + "_" + external_compartment] = (
-                1000.0  # FIXME: I should set this to a consistent, lower value
-            )
+        if not any(pd.isna(row["met_id"])):
+            for met_id in row["met_id"]:
+                medium["EX_" + met_id + "_" + external_compartment] = (
+                    1000.0  # FIXME: I should set this to a consistent, lower value
+                )
         # Test it
         biomass_producibility[c_source] = try_biomass_in_one_medium(
             medium, unlumped_compounds, model
