@@ -66,7 +66,10 @@ minimal,acetate,ac,Yes
         """
 
         # Use StringIO to simulate a file
-        self.phenotypes_df = pd.read_csv(StringIO(phenotypes_csv.strip()))
+        self.phenotypes_df = pd.read_csv(
+            StringIO(phenotypes_csv.strip()),
+            converters={"met_id": lambda x: x.split(",")},
+        )
 
         # Define the minimal media
         self.media_definitions = {
@@ -177,7 +180,7 @@ class TestBiomassWeight(unittest.TestCase):
     def test_calculate_biomass_weight_toy_models(self):
         """Test the calculate_biomass_weight function using toy models"""
         # Expected weight based on the metabolites defined
-        exp_weight = .003
+        exp_weight = 0.003
 
         # Calculate the biomass weight without GAM
         weight_no_GAM = calculate_biomass_weight(
