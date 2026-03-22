@@ -1,0 +1,88 @@
+[
+    {
+        "homepage": "https://escher.github.io",
+        "map_description": "",
+        "map_id": "F7ELE3SnJOjW",
+        "map_name": "new_map",
+        "schema": "https://escher.github.io/escher/jsonschema/1-0-0#"
+    },
+    {
+        "canvas": {
+            "height": 4860.457037353515,
+            "width": 5894.515691375733,
+            "x": 7.857062530517567,
+            "y": 314.36893920898433
+        },
+        "nodes": {
+            "1577107": {
+                "bigg_id": "h2o_e",
+                "label_x": 2637.756103515625,
+                "label_y": 1782.36181640625,
+                "name": "H2O",
+                "node_is_primary": true,
+                "node_type": "metabolite",
+                "x": 2612.756103515625,
+                "y": 1782.36181640625
+            },
+            "1577108": {
+                "node_type": "multimarker",
+                "x": 2612.756103515625,
+                "y": 1937.36181640625
+            },
+            "1577109": {
+                "node_type": "midmarker",
+                "x": 2612.756103515625,
+                "y": 1957.36181640625
+            },
+            "1577110": {
+                "node_type": "multimarker",
+                "x": 2612.756103515625,
+                "y": 1977.36181640625
+            }
+        },
+        "reactions": {
+            "1577550": {
+                "bigg_id": "EX_h2o_e",
+                "gene_reaction_rule": "",
+                "genes": [],
+                "label_x": 2627.756103515625,
+                "label_y": 1967.36181640625,
+                "metabolites": [
+                    {
+                        "bigg_id": "h2o_e",
+                        "coefficient": -1
+                    }
+                ],
+                "name": "H2O exchange",
+                "reversibility": true,
+                "segments": {
+                    "517": {
+                        "b1": null,
+                        "b2": null,
+                        "from_node_id": "1577108",
+                        "to_node_id": "1577109"
+                    },
+                    "518": {
+                        "b1": null,
+                        "b2": null,
+                        "from_node_id": "1577110",
+                        "to_node_id": "1577109"
+                    },
+                    "519": {
+                        "b1": {
+                            "x": 2612.756103515625,
+                            "y": 1895.36181640625
+                        },
+                        "b2": {
+                            "x": 2612.756103515625,
+                            "y": 1841.11181640625
+                        },
+                        "from_node_id": "1577108",
+                        "to_node_id": "1577107"
+                    }
+                }
+            }
+        },
+        "text_labels": {}
+    }
+]
