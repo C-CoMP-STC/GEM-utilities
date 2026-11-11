@@ -5,6 +5,7 @@ import cobra
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+from matplotlib.patches import Patch
 
 from gem_utilities.media import clean_media
 
@@ -216,7 +217,8 @@ def check_biomass_producibility(
     )
 
     # Plot the producibility results
-    plot_biomass_prodcubility(model, df, sinks, out_dir=out_dir)
+    fig = plot_biomass_producibility(model, df, sinks, out_dir=out_dir)
+    plt.close(fig)
 
 
 def try_biomass_in_one_medium(medium_dict, biomass_compounds, model):
@@ -246,59 +248,89 @@ def try_biomass_in_one_medium(medium_dict, biomass_compounds, model):
     return results
 
 
-def plot_biomass_prodcubility(model: cobra.Model, df: pd.DataFrame, sinks, out_dir="."):
+# Colour-blind safe fills for the producibility heatmap (dark blue / orange)
+PRODUCIBLE_COLOR = "#024064"
+NOT_PRODUCIBLE_COLOR = "#FF7D0A"
+# Size of one heatmap cell, in inches, so every row/column label fits
+PRODUCIBILITY_CELL_WIDTH = 0.24
+PRODUCIBILITY_CELL_HEIGHT = 0.16
+
+
+def plot_biomass_producibility(
+    model: cobra.Model, df: pd.DataFrame, sinks, out_dir="."
+) -> plt.Figure:
     """
     Plot the producibility results as a heatmap
 
+    Rows are biomass components and columns are media. The figure is sized
+    per cell so that every row and column is labelled.
+
     Args:
     model (cobra.Model): The model that was tested
-    df (pandas.DataFrame): The producibility results as a dataframe
+    df (pandas.DataFrame): The producibility results as a dataframe, with
+        biomass components as rows and media as columns
     sinks (str): The name of the sink reactions that were added
+    out_dir (str): Directory to save the plot in
 
     Returns:
-    None. The plot is saved to a file.
+    matplotlib.figure.Figure: The figure, which is also saved to
+        <out_dir>/<model.id>_biomass_producibility_heatmap_<sinks>.png
     """
-    # Convert the producibility results to a boolean
-    df_binary = df.replace({True: 1, False: 0})
+    # Convert the producibility results to 0/1. vmin/vmax are pinned below so
+    # an all-True or all-False table still maps onto the right colour.
+    df_binary = df.astype(bool).astype(int)
+    n_rows, n_cols = df_binary.shape
 
-    # Define my own color palette
-    my_palette = sns.color_palette(["red", "green"])
-
-    # Plot the producibility results as a heatmap
-    plt.figure(figsize=(10, 10))
-    ax = sns.heatmap(
-        df_binary,
-        annot=False,
-        cmap=my_palette,
-        cbar_kws={"ticks": [0.25, 0.75], "label": "Producibile"},
-    )
-
-    # Now fix the colorbar tick labels
-    cbar = ax.collections[0].colorbar
-    cbar.set_ticklabels(["No", "Yes"])
-
-    # Add white lines to separate the different cells
-    for i in range(df_binary.shape[0]):
-        plt.axhline(i, color="white", linewidth=0.5)
-    for i in range(df_binary.shape[1]):
-        plt.axvline(i, color="white", linewidth=1)
-
-    # Make sure all y ticks/component names are shown
-    plt.yticks(
-        [x + 0.5 for x in range(df_binary.shape[0])], df_binary.index, fontsize=5
-    )
-
-    plt.xlabel("Biomass composition")
-    plt.ylabel("Biomass compound")
-
-    plt.tight_layout()
-
-    # Save the plot
-    plt.savefig(
-        os.path.join(
-            out_dir, model.id + "_biomass_producibility_heatmap_" + sinks + ".png"
+    fig, ax = plt.subplots(
+        figsize=(
+            n_cols * PRODUCIBILITY_CELL_WIDTH + 4,
+            n_rows * PRODUCIBILITY_CELL_HEIGHT + 3,
         )
     )
+    sns.heatmap(
+        df_binary,
+        annot=False,
+        cmap=[NOT_PRODUCIBLE_COLOR, PRODUCIBLE_COLOR],
+        vmin=0,
+        vmax=1,
+        cbar=False,
+        linewidths=0.5,
+        linecolor="white",
+        xticklabels=list(df_binary.columns),
+        yticklabels=list(df_binary.index),
+        ax=ax,
+    )
+    ax.tick_params(axis="both", length=0, labelsize=7)
+    ax.set_xticklabels(list(df_binary.columns), rotation=90)
+    ax.set_xlabel("Medium")
+    ax.set_ylabel("Biomass component")
+
+    ax.legend(
+        handles=[
+            Patch(facecolor=PRODUCIBLE_COLOR, label="Producible"),
+            Patch(facecolor=NOT_PRODUCIBLE_COLOR, label="Not producible"),
+        ],
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1),
+        frameon=False,
+        fontsize=8,
+    )
+
+    # Save the plot
+    fig.savefig(
+        os.path.join(
+            out_dir, model.id + "_biomass_producibility_heatmap_" + sinks + ".png"
+        ),
+        bbox_inches="tight",
+        dpi=150,
+    )
+    return fig
+
+
+def plot_biomass_prodcubility(model: cobra.Model, df: pd.DataFrame, sinks, out_dir="."):
+    """Deprecated misspelled alias of plot_biomass_producibility, kept for
+    backwards compatibility."""
+    return plot_biomass_producibility(model, df, sinks, out_dir=out_dir)
 
 
 def _get_biomass_composition_properties(

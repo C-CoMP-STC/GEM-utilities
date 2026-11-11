@@ -1,14 +1,23 @@
 import os
+import tempfile
 import unittest
 from io import StringIO
 
 import cobra
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.colors
+import matplotlib.pyplot
 import pandas as pd
 from cobra import Metabolite, Model, Reaction
 
 from gem_utilities.biomass import (
+    PRODUCIBLE_COLOR,
     calculate_biomass_weight,
     check_biomass_producibility,
+    plot_biomass_prodcubility,
+    plot_biomass_producibility,
     unlump_biomass,
 )
 
@@ -122,6 +131,60 @@ minimal,acetate,ac,Yes
             os.remove("e_coli_core_biomass_producibility_heatmap_all_sinks.png")
         if os.path.exists("e_coli_core_biomass_producibility_all_sinks.csv"):
             os.remove("e_coli_core_biomass_producibility_all_sinks.csv")
+
+
+class TestPlotBiomassProducibility(unittest.TestCase):
+    def setUp(self):
+        self.model = Model("test_model")
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.out_png = os.path.join(
+            self.tmpdir.name, "test_model_biomass_producibility_heatmap_all_sinks.png"
+        )
+
+    def tearDown(self):
+        matplotlib.pyplot.close("all")
+        self.tmpdir.cleanup()
+
+    def test_one_tick_label_per_row_and_column(self):
+        """With many media, every medium and component is labelled"""
+        media = [f"medium_{i}" for i in range(50)]
+        components = [f"cpd_{i}" for i in range(30)]
+        df = pd.DataFrame(
+            [
+                [(i + j) % 3 != 0 for j in range(len(media))]
+                for i in range(len(components))
+            ],
+            index=components,
+            columns=media,
+        )
+        fig = plot_biomass_producibility(
+            self.model, df, "all_sinks", out_dir=self.tmpdir.name
+        )
+        self.assertTrue(os.path.exists(self.out_png))
+        ax = fig.axes[0]
+        self.assertEqual([t.get_text() for t in ax.get_xticklabels()], media)
+        self.assertEqual([t.get_text() for t in ax.get_yticklabels()], components)
+        self.assertEqual(ax.get_xlabel(), "Medium")
+
+    def test_all_producible_maps_to_producible_color(self):
+        """An all-True table is drawn in the producible colour"""
+        df = pd.DataFrame({"m1": [True, True], "m2": [True, True]}, index=["a", "b"])
+        fig = plot_biomass_producibility(
+            self.model, df, "all_sinks", out_dir=self.tmpdir.name
+        )
+        facecolors = fig.axes[0].collections[0].get_facecolors()
+        expected = matplotlib.colors.to_rgba(PRODUCIBLE_COLOR)
+        for fc in facecolors:
+            self.assertEqual(
+                tuple(round(c, 3) for c in fc), tuple(round(c, 3) for c in expected)
+            )
+
+    def test_misspelled_alias(self):
+        df = pd.DataFrame({"m1": [True, False]}, index=["a", "b"])
+        plot_biomass_prodcubility(
+            self.model, df, "all_sinks", out_dir=self.tmpdir.name
+        )
+        self.assertTrue(os.path.exists(self.out_png))
 
 
 class TestBiomassWeight(unittest.TestCase):
