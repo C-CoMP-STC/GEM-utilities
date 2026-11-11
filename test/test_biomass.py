@@ -15,6 +15,17 @@ from gem_utilities.biomass import (
 TESTFILE_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "test_files")
 
 
+class BiGGModelsHttps(cobra.io.BiGGModels):
+    """BiGG repository over https. cobra's default BiGGModels uses http, which
+    BiGG now redirects (301) and cobra does not follow."""
+
+    def __init__(self, **kwargs):
+        # Skip BiGGModels.__init__, which hard-codes the http URL
+        super(cobra.io.BiGGModels, self).__init__(
+            url="https://bigg.ucsd.edu/static/models/", **kwargs
+        )
+
+
 class TestUnlumpBiomass(unittest.TestCase):
     def setUp(self):
         # Create a simple test model
@@ -209,7 +220,7 @@ class TestBiomassWeight(unittest.TestCase):
         exp_weight = 1.0
 
         # Load the full E. coli from COBRApy
-        model = cobra.io.load_model("iML1515")
+        model = cobra.io.load_model("iML1515", repositories=[BiGGModelsHttps()])
 
         # Calculate the biomass weight and save the work table
         weight = calculate_biomass_weight(
